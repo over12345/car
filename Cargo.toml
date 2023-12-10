@@ -15,6 +15,7 @@ panic-halt = "*"
 embedded-graphics = "*"
 ssd1306 = "*"
 stm32f1xx-hal = { version = "0.10.0", features = ["rt", "stm32f103"] }
+embedded-alloc = "0.5.1"
 
 # Uncomment for the panic example.
 # panic-itm = "0.4.1"
