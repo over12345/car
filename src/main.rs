@@ -20,12 +20,8 @@ use stm32f1xx_hal::{
     prelude::*,
     stm32,
 };
-
-use embedded_alloc::Heap;
-
 #[global_allocator]
-static HEAP: Heap = Heap::empty();
-
+static ALLOCATOR: emballoc::Allocator<4096> = emballoc::Allocator::new();
 #[entry]
 fn main() -> ! {
     let dp = stm32::Peripherals::take().unwrap();
