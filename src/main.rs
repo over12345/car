@@ -1,5 +1,5 @@
 //! Testing PWM output for custom pin combinations
-
+mod init;
 #![deny(unsafe_code)]
 #![no_main]
 #![no_std]
@@ -36,7 +36,7 @@ fn left1_init() -> ! {
     
    
 
-    let motor_a_in1 = gpioa.pa10.into_push_pull_output(&mut gpioa.crh);         //电机A的输入信号1的引脚与pa0相连，用的是tim2的通道1
+    let motor_a_in1:  = gpioa.pa10.into_push_pull_output(&mut gpioa.crh);         //电机A的输入信号1的引脚与pa0相连，用的是tim2的通道1
     let motor_a_in2 = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);         //电机A的输入信号2的引脚与pa1相连，用的是tim2的通道2
     let motor_b_in1 = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);          //电机B的输入信号1的引脚与pa2相连，用的是tim2的通道3
     let motor_b_in2 = gpioa.pa9.into_push_pull_output(&mut gpioa.crh);          //电机B的输入信号2的引脚与pa3相连，用的是tim2的通道4
