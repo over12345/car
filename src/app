@@ -1,5 +1,4 @@
-//! Testing PWM output for custom pin combinations
-
+//left1
 #![deny(unsafe_code)]
 #![no_main]
 #![no_std]
@@ -12,7 +11,7 @@ use cortex_m_rt::entry;
 use tb6612fng::{Tb6612fng, DriveCommand};
 use tb6612fng::Motor;
 #[entry]
-fn left1_init() -> ! {
+fn left1_init() -> {
      // Get access to the device specific peripherals from the peripheral access crate
      let dp = pac::Peripherals::take().unwrap();
      // Take ownership over the raw flash and rcc devices and convert them into the corresponding
@@ -43,7 +42,7 @@ fn left1_init() -> ! {
     let standby = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
     // let mut motor_a = Motor::new(motor_a_in1, motor_a_in2, pwm_channel.0);
     // let mut motor_b = Motor::new(motor_b_in1, motor_b_in2, pwm_channel.1);
-    let mut controller = Tb6612fng::new(motor_a_in1, motor_a_in2, pwm_channel.0, motor_b_in1,motor_b_in2, pwm_channel.1,standby);
+ 
     // // let mut controller = Tb6612fng::new(motor_a_in1, motor_a_in2, pwm_channel.0, motor_b_in1, motor_b_in2, pwm_channel.1, standby);
 
     // Tb6612fng::disable_standby(&mut controller);
@@ -72,10 +71,12 @@ fn left1_init() -> ! {
     
     // Start using the channels
  
+        
+}   
+
+
+let mut controller = Tb6612fng::new(motor_a_in1, motor_a_in2, pwm_channel.0, motor_b_in1,motor_b_in2, pwm_channel.1,standby);
      loop {
         controller.motor_a.drive_forward(100).unwrap();
 
      }
-
-        
-}

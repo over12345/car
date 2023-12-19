@@ -1,19 +1,21 @@
-//! Testing PWM output for custom pin combinations
-
 #![deny(unsafe_code)]
 #![no_main]
 #![no_std]
 
 use panic_halt as _;
 
-use stm32f1xx_hal::{timer::{Timer, Tim2NoRemap}, pac, prelude::*};
+use cortex_m::asm;
+use stm32f1xx_hal::{pac, prelude::*, timer::Timer};
 
 use cortex_m_rt::entry;
+use tb6612fng::Tb6612fng;
+
 use tb6612fng::{Tb6612fng, DriveCommand};
-use tb6612fng::Motor;
+
+
 #[entry]
-fn left1_init() -> ! {
-     // Get access to the device specific peripherals from the peripheral access crate
+fn motor() -> ! {
+ // Get access to the device specific peripherals from the peripheral access crate
      let dp = pac::Peripherals::take().unwrap();
      // Take ownership over the raw flash and rcc devices and convert them into the corresponding
      // HAL structs
@@ -78,4 +80,5 @@ fn left1_init() -> ! {
      }
 
         
+
 }

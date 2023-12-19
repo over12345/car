@@ -2,7 +2,7 @@
 authors = ["app"]
 edition = "2018"
 readme = "README.md"
-name = "app"
+name = "apph"
 version = "0.1.0"
 
 [dependencies]
@@ -15,7 +15,8 @@ panic-halt = "*"
 embedded-graphics = "*"
 ssd1306 = "*"
 stm32f1xx-hal = { version = "0.10.0", features = ["rt", "stm32f103"] }
-emballoc = "0.2.0"
+
+tb6612fng = "0.1"
 
 # Uncomment for the panic example.
 # panic-itm = "0.4.1"
@@ -29,7 +30,7 @@ emballoc = "0.2.0"
 
 # this lets you use `cargo fix`!
 [[bin]]
-name = "app"
+name = "apph"
 test = false
 bench = false
 
