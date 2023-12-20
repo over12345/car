@@ -17,6 +17,7 @@ ssd1306 = "*"
 stm32f1xx-hal = { version = "0.10.0", features = ["rt", "stm32f103"] }
 
 tb6612fng = "0.1"
+fugit = "0.3.7"
 
 # Uncomment for the panic example.
 # panic-itm = "0.4.1"
