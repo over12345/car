@@ -1,12 +1,13 @@
 use core::fmt::Write;
-use core::str::from_utf8_unchecked;
+use core::str::from_utf8;
 
-use nb::block;
+// use nb::block;
 //一些单位的trait
 use fugit::RateExtU32;
+use nb::block;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::{afio::AfioExt, dma::DmaExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
+use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
 //电机控制
 use tb6612fng::Tb6612fng;
@@ -43,6 +44,53 @@ pub struct CarPins {
     pub openmv:
         serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
     // pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+}
+
+trait DisplaySsd {
+    fn ssdwrap(
+        self,
+        display: &mut Ssd1306<
+            I2CInterface<
+                i2c::BlockingI2c<
+                    pac::I2C1,
+                    (
+                        gpio::Pin<'B', 8, gpio::Alternate<gpio::OpenDrain>>,
+                        gpio::Pin<'B', 9, gpio::Alternate<gpio::OpenDrain>>,
+                    ),
+                >,
+            >,
+            DisplaySize128x64,
+            ssd1306::mode::TerminalMode,
+        >,
+    ) -> u8;
+}
+
+impl<E: core::fmt::Debug> DisplaySsd for core::result::Result<u8, E> {
+    fn ssdwrap(
+        self,
+        display: &mut Ssd1306<
+            I2CInterface<
+                i2c::BlockingI2c<
+                    pac::I2C1,
+                    (
+                        gpio::Pin<'B', 8, gpio::Alternate<gpio::OpenDrain>>,
+                        gpio::Pin<'B', 9, gpio::Alternate<gpio::OpenDrain>>,
+                    ),
+                >,
+            >,
+            DisplaySize128x64,
+            ssd1306::mode::TerminalMode,
+        >,
+    ) -> u8 {
+        match self {
+            Ok(a) => a,
+            Err(e) => {
+                display.clear().unwrap();
+                writeln!(display, "{:?}", e).unwrap();
+                0
+            }
+        }
+    }
 }
 
 impl CarPins {
@@ -118,7 +166,7 @@ impl CarPins {
             dp.USART3,
             (tx, rx),
             &mut afio.mapr,
-            serial::Config::default().baudrate(19_200_u32.bps()),
+            serial::Config::default().baudrate(9_600_u32.bps()),
             &clocks,
         );
 
@@ -129,10 +177,16 @@ impl CarPins {
         }
     }
     pub fn read(&mut self) {
-        let received = block!(self.openmv.rx.read()).unwrap();
-        self.display
-            .write_str(unsafe { from_utf8_unchecked(&[received]) })
-            .unwrap();
+        let mut json = [0 as u8; 150];
+        block!(self.openmv.tx.write(b'0')).unwrap();
+        let mut received = block!(self.openmv.rx.read()).ssdwrap(&mut self.display);
+        while received != b'{' {
+            received = block!(self.openmv.rx.read()).ssdwrap(&mut self.display);
+        }
+        for index in 0..150 {
+            json[index] = block!(self.openmv.rx.read()).ssdwrap(&mut self.display);
+        }
+        write!(self.display, "{}", from_utf8(&json).unwrap()).unwrap();
     }
 }
 
