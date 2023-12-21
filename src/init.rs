@@ -1,12 +1,11 @@
 use core::fmt::Write;
 use core::str::from_utf8_unchecked;
-use cortex_m::{asm, singleton};
 
+use nb::block;
 //一些单位的trait
 use fugit::RateExtU32;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::dma::ReadDma;
 use stm32f1xx_hal::{afio::AfioExt, dma::DmaExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
 //电机控制
@@ -41,9 +40,9 @@ pub struct CarPins {
         DisplaySize128x64,
         ssd1306::mode::TerminalMode,
     >,
-    // pub openmv:
-    //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
-    pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+    pub openmv:
+        serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
+    // pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
 }
 
 impl CarPins {
@@ -114,34 +113,26 @@ impl CarPins {
         //串口通信引脚
         let tx = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
         let rx = gpiob.pb11;
-        let channels = dp.DMA1.split();
-        let openmv: serial::Serial<
-            pac::USART3,
-            (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>),
-        > = serial::Serial::new(
+        // let channels = dp.DMA1.split();
+        let openmv = serial::Serial::new(
             dp.USART3,
             (tx, rx),
             &mut afio.mapr,
             serial::Config::default().baudrate(19_200_u32.bps()),
             &clocks,
         );
-        let rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3> =
-            openmv.rx.with_dma(channels.3);
 
         Self {
             _motor: motor,
             display,
-            rx,
+            openmv,
         }
     }
-    pub fn read(mut self) -> Self {
-        let buf = singleton!(: [u8; 8] = [0; 8]).unwrap();
-        let (buf, rx) = self.rx.read(buf).wait();
-        self.rx = rx;
+    pub fn read(&mut self) {
+        let received = block!(self.openmv.rx.read()).unwrap();
         self.display
-            .write_str(unsafe { from_utf8_unchecked(buf) })
+            .write_str(unsafe { from_utf8_unchecked(&[received]) })
             .unwrap();
-        self
     }
 }
 

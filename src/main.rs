@@ -12,7 +12,7 @@ mod init;
 fn main() -> ! {
     let mut car = init::CarPins::new();
     loop {
-        car = car.read();
+        car.read();
     }
 }
 
