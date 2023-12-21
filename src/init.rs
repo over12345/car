@@ -6,6 +6,7 @@ use nb::block;
 use fugit::RateExtU32;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
+use stm32f1xx_hal::dma::DmaExt;
 use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
 use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
@@ -43,11 +44,11 @@ pub struct CarPins {
         DisplaySize128x64,
         ssd1306::mode::TerminalMode,
     >,
-    pub openmv:
-        serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
+    // pub openmv:
+    //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
     pub delay: timer::SysDelay,
     pub led: gpio::Pin<'A', 8, gpio::Output>,
-    // pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+    pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
 }
 
 struct mes {
@@ -138,11 +139,13 @@ impl CarPins {
             serial::Config::default().baudrate(19_200_u32.bps()),
             &clocks,
         );
+        let channels = dp.DMA1.split();
+        let rx = openmv.rx.with_dma(channels.3);
 
         Self {
             _motor: motor,
             display,
-            openmv,
+            rx,
             delay,
             led,
         }
@@ -153,7 +156,7 @@ impl CarPins {
             Ok(a) => a,
             Err(e) => {
                 let _ = self.display.clear();
-                writeln!(self.display, "g: {:?}", e).unwrap();
+                writeln!(self.display, "g156: {:?}", e).unwrap();
                 self.delay.delay_ms(1000 as u16);
                 0
             }
@@ -161,14 +164,16 @@ impl CarPins {
         self.delay.delay_ms(100 as u16);
         self.led.set_high();
         while byte != b'{' {
-            match block!(self.openmv.rx.read()) {
-                Ok(a) => byte = a,
-                Err(e) => {
-                    let _ = self.display.clear();
-                    writeln!(self.display, "g: {:?}", e).unwrap();
-                    self.delay.delay_ms(1000 as u16);
-                }
-            };
+            if self.openmv.is_rx_not_empty() {
+                match block!(self.openmv.rx.read()) {
+                    Ok(a) => byte = a,
+                    Err(e) => {
+                        let _ = self.display.clear();
+                        writeln!(self.display, "g169: {:?}", e).unwrap();
+                        self.delay.delay_ms(1000 as u16);
+                    }
+                };
+            }
         }
 
         let mut json = [0 as u8; 74];
@@ -177,7 +182,7 @@ impl CarPins {
                 Ok(a) => a,
                 Err(e) => {
                     let _ = self.display.clear();
-                    writeln!(self.display, "g: {:?}", e).unwrap();
+                    writeln!(self.display, "g:182 {:?}", e).unwrap();
                     self.delay.delay_ms(1000 as u16);
                     0
                 }
