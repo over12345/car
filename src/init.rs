@@ -1,12 +1,14 @@
+use core::f64::consts::E;
 use core::fmt::Write;
-use core::str::from_utf8_unchecked;
+use core::str::{from_utf8, from_utf8_unchecked};
+use cortex_m::singleton;
 use embedded_hal::blocking::delay::DelayMs;
 use nb::block;
 //一些单位的trait
 use fugit::RateExtU32;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::dma::DmaExt;
+use stm32f1xx_hal::dma::{CircReadDma, DmaExt, Half, ReadDma};
 use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
 use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
@@ -150,49 +152,25 @@ impl CarPins {
             led,
         }
     }
-    pub fn read(&mut self) {
-        self.led.set_low();
-        let mut byte = match block!(self.openmv.rx.read()) {
-            Ok(a) => a,
-            Err(e) => {
-                let _ = self.display.clear();
-                writeln!(self.display, "g156: {:?}", e).unwrap();
-                self.delay.delay_ms(1000 as u16);
-                0
-            }
-        };
-        self.delay.delay_ms(100 as u16);
-        self.led.set_high();
-        while byte != b'{' {
-            if self.openmv.is_rx_not_empty() {
-                match block!(self.openmv.rx.read()) {
-                    Ok(a) => byte = a,
-                    Err(e) => {
-                        let _ = self.display.clear();
-                        writeln!(self.display, "g169: {:?}", e).unwrap();
-                        self.delay.delay_ms(1000 as u16);
-                    }
-                };
+    pub fn read(mut self) -> Self {
+        writeln!(self.display, "155").unwrap();
+        let buf = singleton!(: [u8; 8] = [0; 8]).unwrap();
+        let t: stm32f1xx_hal::dma::Transfer<
+            stm32f1xx_hal::dma::W,
+            &mut [u8; 8],
+            stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+        > = self.rx.read(buf);
+        writeln!(self.display, "162").unwrap();
+        while !t.is_done() {
+            match from_utf8(&t.peek()) {
+                Ok(a) => write!(self.display, "{}", a).unwrap(),
+                Err(e) => writeln!(self.display, "{:?}", e).unwrap(),
             }
         }
-
-        let mut json = [0 as u8; 74];
-        for i in 0..74 {
-            json[i] = match block!(self.openmv.rx.read()) {
-                Ok(a) => a,
-                Err(e) => {
-                    let _ = self.display.clear();
-                    writeln!(self.display, "g:182 {:?}", e).unwrap();
-                    self.delay.delay_ms(1000 as u16);
-                    0
-                }
-            };
-        }
-
-        let json = unsafe { from_utf8_unchecked(&json) };
-
+        writeln!(self.display, "168").unwrap();
         //let json = de::from_str(json).unwrap();
-        self.display.write_str(json).unwrap();
+        (_, self.rx) = t.wait();
+        self
     }
 }
 

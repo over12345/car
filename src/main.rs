@@ -10,6 +10,6 @@ fn main() -> ! {
     let mut car = init::CarPins::new();
     let _ = car.display.clear();
     loop {
-        car.read();
+        car = car.read();
     }
 }
