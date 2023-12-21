@@ -8,10 +8,11 @@ use nb::block;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
 // use stm32f1xx_hal::dma::DmaExt;
+use cortex_m::prelude::_embedded_hal_adc_OneShot;
 use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
 use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 
-use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
+use stm32f1xx_hal::{adc, gpio, i2c, pac, serial, timer};
 //电机控制
 use tb6612fng::Tb6612fng;
 //I2C屏幕，终端模式
@@ -43,6 +44,7 @@ pub struct CarPins {
         DisplaySize128x64,
         ssd1306::mode::TerminalMode,
     >,
+    mental: (adc::Adc<pac::ADC1>, gpio::Pin<'B', 0, gpio::Analog>),
     pub delay: timer::SysDelay,
     // pub openmv:
     //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
@@ -122,6 +124,10 @@ impl CarPins {
 
         //获取所需引脚，为引脚设定功能，并启用时钟。载入对应功能控制对象
 
+        // 设置 ADC
+        let adc1 = adc::Adc::adc1(dp.ADC1, clocks);
+        let ch0 = gpiob.pb0.into_analog(&mut gpiob.crl);
+
         //电机PWM控制
         let pins_pwm = (
             gpioa.pa0.into_alternate_push_pull(&mut gpioa.crl),
@@ -194,6 +200,7 @@ impl CarPins {
 
         Self {
             motor,
+            mental: (adc1, ch0),
             display,
             delay,
             rx,
@@ -219,7 +226,13 @@ impl CarPins {
     }
     pub fn go_with_openmv(&mut self) {
         let mes = self.read();
-        self.motor.disable_standby();
+
+        let data: u16 = self.mental.0.read(&mut self.mental.1).unwrap();
+        if data <= 20 {
+            self.motor.disable_standby();
+        } else {
+            self.motor.enable_standby()
+        }
         match mes.direction {
             //按理来说，不可能后退，所以，代码就这样了。根据已有的Openmv代码来看，大概率只会命中第一种情况
             [true, true] => {
