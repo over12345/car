@@ -1,87 +1,72 @@
-#![deny(unsafe_code)]
-#![no_main]
 #![no_std]
+#![no_main]
 
-//! Testing PWM output for custom pin combinations
-mod init;
-
-use panic_halt as _;
-
-use stm32f1xx_hal::{
-    pac,
+use cortex_m_rt::{entry, exception, ExceptionFrame};
+use embedded_graphics::{
+    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    pixelcolor::BinaryColor,
     prelude::*,
-    timer::{Tim2NoRemap, Timer},
+    text::{Baseline, Text},
+};
+use panic_halt as _;
+use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
+use stm32f1xx_hal::{
+    i2c::{BlockingI2c, DutyCycle, Mode},
+    prelude::*,
+    stm32,
 };
 
-use cortex_m_rt::entry;
-use tb6612fng::Motor;
-use tb6612fng::{DriveCommand, Tb6612fng};
 #[entry]
-fn left1_init() -> ! {
-    // Get access to the device specific peripherals from the peripheral access crate
-    let dp = pac::Peripherals::take().unwrap();
-    // Take ownership over the raw flash and rcc devices and convert them into the corresponding
-    // HAL structs
+fn main() -> ! {
+    let dp = stm32::Peripherals::take().unwrap();
     let mut flash = dp.FLASH.constrain();
     let rcc = dp.RCC.constrain();
-
-    // Freeze the configuration of all the clocks in the system and store the frozen frequencies in
-    // `clocks`
     let clocks = rcc.cfgr.freeze(&mut flash.acr);
-    let mut gpioa = dp.GPIOA.split();
-    let pins_pwm = (
-        gpioa.pa0.into_alternate_push_pull(&mut gpioa.crl),
-        gpioa.pa1.into_alternate_push_pull(&mut gpioa.crl),
-    );
-
     let mut afio = dp.AFIO.constrain();
-    let pwm_hz =
-        Timer::new(dp.TIM2, &clocks).pwm_hz::<Tim2NoRemap, _, _>(pins_pwm, &mut afio.mapr, 1.kHz());
-    let mut pwm_channel = pwm_hz.split();
-    pwm_channel.0.set_duty(50);
+    let mut gpiob = dp.GPIOB.split();
 
-    let motor_a_in1 = gpioa.pa10.into_push_pull_output(&mut gpioa.crh); //电机A的输入信号1的引脚与pa0相连，用的是tim2的通道1
-    let motor_a_in2 = gpioa.pa11.into_push_pull_output(&mut gpioa.crh); //电机A的输入信号2的引脚与pa1相连，用的是tim2的通道2
-    let motor_b_in1 = gpioa.pa12.into_push_pull_output(&mut gpioa.crh); //电机B的输入信号1的引脚与pa2相连，用的是tim2的通道3
-    let motor_b_in2 = gpioa.pa9.into_push_pull_output(&mut gpioa.crh); //电机B的输入信号2的引脚与pa3相连，用的是tim2的通道4
-    let standby = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
-    // let mut motor_a = Motor::new(motor_a_in1, motor_a_in2, pwm_channel.0);
-    // let mut motor_b = Motor::new(motor_b_in1, motor_b_in2, pwm_channel.1);
-    let mut controller = Tb6612fng::new(
-        motor_a_in1,
-        motor_a_in2,
-        pwm_channel.0,
-        motor_b_in1,
-        motor_b_in2,
-        pwm_channel.1,
-        standby,
+    let scl = gpiob.pb8.into_alternate_open_drain(&mut gpiob.crh);
+    let sda = gpiob.pb9.into_alternate_open_drain(&mut gpiob.crh);
+
+    let i2c = BlockingI2c::i2c1(
+        dp.I2C1,
+        (scl, sda),
+        &mut afio.mapr,
+        Mode::Fast {
+            frequency: 400_000.Hz(),
+            duty_cycle: DutyCycle::Ratio2to1,
+        },
+        clocks,
+        1000,
+        10,
+        1000,
+        1000,
     );
-    // // let mut controller = Tb6612fng::new(motor_a_in1, motor_a_in2, pwm_channel.0, motor_b_in1, motor_b_in2, pwm_channel.1, standby);
 
-    // Tb6612fng::disable_standby(&mut controller);
+    let interface = I2CDisplayInterface::new(i2c);
+    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+        .into_buffered_graphics_mode();
+    display.init().unwrap();
 
-    //
+    let text_style = MonoTextStyleBuilder::new()
+        .font(&FONT_6X10)
+        .text_color(BinaryColor::On)
+        .build();
 
-    //   let controller = Tb6612fng::new(
-    //     motor_a_in1,
-    //     motor_a_in2,
-    //     motor_a_pwm,
-    //     motor_b_in1,
-    //     motor_b_in2,
-    //     motor_b_pwm,
-    //     standby,
-    // );
+    Text::with_baseline("Hello world!", Point::zero(), text_style, Baseline::Top)
+        .draw(&mut display)
+        .unwrap();
 
-    //  a0.set_duty(a1.get_max_duty());
-    //  a1.enable();
+    Text::with_baseline("Hello Rust!", Point::new(0, 16), text_style, Baseline::Top)
+        .draw(&mut display)
+        .unwrap();
 
-    // Set up the timer as a PWM output. If selected pins may correspond to different remap options,
-    // then you must specify the remap generic parameter. Otherwise, if there is no such ambiguity,
-    // the remap generic parameter can be omitted without complains from the compiler.
+    display.flush().unwrap();
 
-    // Start using the channels
+    loop {}
+}
 
-    loop {
-        controller.motor_a.drive_forward(100).unwrap();
-    }
+#[exception]
+unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
+    panic!("{:#?}", ef);
 }
