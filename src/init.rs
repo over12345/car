@@ -1,13 +1,14 @@
 use core::fmt::Write;
 use core::str::from_utf8;
 
+use cortex_m::singleton;
 // use nb::block;
 //一些单位的trait
 use fugit::RateExtU32;
 use nb::block;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
+use stm32f1xx_hal::{afio::AfioExt, dma::DmaExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
 //电机控制
 use tb6612fng::Tb6612fng;
@@ -41,9 +42,10 @@ pub struct CarPins {
         DisplaySize128x64,
         ssd1306::mode::TerminalMode,
     >,
-    pub openmv:
-        serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
-    // pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+    // pub openmv:
+    //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
+    pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+    tx: serial::Tx<pac::USART3>,
 }
 
 trait DisplaySsd {
@@ -161,7 +163,7 @@ impl CarPins {
         //串口通信引脚
         let tx = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
         let rx = gpiob.pb11;
-        // let channels = dp.DMA1.split();
+        let channels = dp.DMA1.split();
         let openmv = serial::Serial::new(
             dp.USART3,
             (tx, rx),
@@ -169,24 +171,25 @@ impl CarPins {
             serial::Config::default().baudrate(9_600_u32.bps()),
             &clocks,
         );
+        let tx: serial::Tx<pac::USART3> = openmv.tx;
+        let rx = openmv.rx.with_dma(channels.3);
 
         Self {
             _motor: motor,
             display,
-            openmv,
+            rx,
+            tx,
         }
     }
-    pub fn read(&mut self) {
-        let mut json = [0 as u8; 150];
-        block!(self.openmv.tx.write(b'0')).unwrap();
-        let mut received = block!(self.openmv.rx.read()).ssdwrap(&mut self.display);
-        while received != b'{' {
-            received = block!(self.openmv.rx.read()).ssdwrap(&mut self.display);
-        }
-        for index in 0..150 {
-            json[index] = block!(self.openmv.rx.read()).ssdwrap(&mut self.display);
-        }
-        write!(self.display, "{}", from_utf8(&json).unwrap()).unwrap();
+    pub fn read(mut self) -> Self {
+        // let mut json = [0 as u8; 150];
+        block!(self.tx.write(b'0')).unwrap();
+        let buf = singleton!(: [u8; 150] = [0; 150]).unwrap();
+        use stm32f1xx_hal::dma::ReadDma;
+        let (buf, rx) = self.rx.read(buf).wait();
+        write!(self.display, "{}", from_utf8(buf).unwrap()).unwrap();
+        self.rx = rx;
+        self
     }
 }
 

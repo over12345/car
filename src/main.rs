@@ -11,7 +11,8 @@ fn main() -> ! {
     let mut car = init::CarPins::new();
     loop {
         car.display.clear().unwrap();
-        car.read();
+        car = car.read();
+        car.delay
     }
 }
 
