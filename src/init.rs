@@ -16,8 +16,6 @@ use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
 use tb6612fng::Tb6612fng;
 //I2C屏幕，终端模式
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
-//JSON解析
-use lite_json::json_parser::parse_json;
 /// 这里将包含所有需要引脚的初始话和定义调度器结构体
 
 pub struct CarPins {
@@ -53,22 +51,13 @@ pub struct CarPins {
 }
 
 struct Mes {
-    theta: i16,
-    rho: i16,
-    ain: [bool; 2],
-    bin: [bool; 2],
-    ch: [i16; 2],
+    pwm: [u8; 2],
+    direction: [bool; 2],
 }
 
 impl Mes {
-    fn new(theta: i16, rho: i16, ain: [bool; 2], bin: [bool; 2], ch: [i16; 2]) -> Self {
-        Self {
-            theta,
-            rho,
-            ain,
-            bin,
-            ch,
-        }
+    fn new(pwm: [u8; 2], direction: [bool; 2]) -> Self {
+        Self { pwm, direction }
     }
 }
 
@@ -151,10 +140,9 @@ impl CarPins {
         let motor_b_in1 = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
         let motor_b_in2 = gpioa.pa9.into_push_pull_output(&mut gpioa.crh);
         let standby = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
-        let mut led = gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
 
         //电机控制对象
-        let motor = Tb6612fng::new(
+        let mut motor = Tb6612fng::new(
             motor_a_in1,
             motor_a_in2,
             pwm_0,
@@ -212,7 +200,7 @@ impl CarPins {
             tx,
         }
     }
-    pub fn read(&mut self) -> Mes {
+    fn read(&mut self) -> Mes {
         // let mut json = [0 as u8; 150];
         block!(self.tx.write(b'0')).unwrap();
         writeln!(self.display, "write 0").unwrap();
@@ -225,17 +213,29 @@ impl CarPins {
         let json = from_utf8(buf).unwrap();
         write!(self.display, "{}", json).unwrap();
         Mes {
-            theta: 1,
-            rho: 1,
-            ain: [true, false],
-            bin: [true, false],
-            ch: [0, 0],
+            pwm: [100, 100],
+            direction: [true, true],
         }
     }
     pub fn go_with_openmv(&mut self) {
         let mes = self.read();
-        self.motor.motor_a.drive_forward(mes.ch[0] as u8).unwrap();
-        self.motor.motor_b.drive_forward(mes.ch[0] as u8).unwrap();
+        self.motor.disable_standby();
+        match mes.direction {
+            //按理来说，不可能后退，所以，代码就这样了。根据已有的Openmv代码来看，大概率只会命中第一种情况
+            [true, true] => {
+                self.motor.motor_a.drive_forward(mes.pwm[0]).unwrap();
+                self.motor.motor_b.drive_forward(mes.pwm[1]).unwrap();
+            }
+            [true, false] => {
+                self.motor.motor_a.drive_forward(mes.pwm[0]).unwrap();
+                self.motor.motor_b.drive_backwards(mes.pwm[1]).unwrap();
+            }
+            [false, true] => {
+                self.motor.motor_a.drive_backwards(mes.pwm[0]).unwrap();
+                self.motor.motor_b.drive_forward(mes.pwm[1]).unwrap();
+            }
+            [false, false] => self.motor.enable_standby(),
+        }
     }
 }
 
