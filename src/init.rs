@@ -191,7 +191,8 @@ impl CarPins {
     pub fn read(mut self) -> Self {
         // let mut json = [0 as u8; 150];
         block!(self.tx.write(b'0')).unwrap();
-        self.delay.delay_ms(10 as u16);
+        writeln!(self.display, "write 0").unwrap();
+        // self.delay.delay_ms(10 as u16);
         let buf = singleton!(: [u8; 150] = [0; 150]).unwrap();
         use stm32f1xx_hal::dma::ReadDma;
         let (buf, rx) = self.rx.read(buf).wait();
