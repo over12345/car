@@ -22,7 +22,7 @@ use lite_json::json_parser::parse_json;
 
 pub struct CarPins {
     //马达
-    _motor: Tb6612fng<
+    motor: Tb6612fng<
         gpio::Pin<'A', 10, gpio::Output>,
         gpio::Pin<'A', 11, gpio::Output>,
         timer::PwmChannel<pac::TIM2, 0>, //PA0
@@ -58,6 +58,18 @@ struct Mes {
     ain: [bool; 2],
     bin: [bool; 2],
     ch: [i16; 2],
+}
+
+impl Mes {
+    fn new(theta: i16, rho: i16, ain: [bool; 2], bin: [bool; 2], ch: [i16; 2]) -> Self {
+        Self {
+            theta,
+            rho,
+            ain,
+            bin,
+            ch,
+        }
+    }
 }
 
 trait DisplaySsd {
@@ -151,7 +163,7 @@ impl CarPins {
             pwm_1,
             standby,
         );
-        led.set_high();
+        motor.enable_standby();
 
         //I2C引脚与初始化I2C
         let scl = gpiob.pb8.into_alternate_open_drain(&mut gpiob.crh);
@@ -193,14 +205,14 @@ impl CarPins {
         // let rx = openmv.rx.with_dma(channels.3);
 
         Self {
-            _motor: motor,
+            motor,
             display,
             delay,
             rx,
             tx,
         }
     }
-    pub fn read(&mut self) -> lite_json::JsonValue {
+    pub fn read(&mut self) -> Mes {
         // let mut json = [0 as u8; 150];
         block!(self.tx.write(b'0')).unwrap();
         writeln!(self.display, "write 0").unwrap();
@@ -212,7 +224,18 @@ impl CarPins {
         }
         let json = from_utf8(buf).unwrap();
         write!(self.display, "{}", json).unwrap();
-        parse_json(json).unwrap()
+        Mes {
+            theta: 1,
+            rho: 1,
+            ain: [true, false],
+            bin: [true, false],
+            ch: [0, 0],
+        }
+    }
+    pub fn go_with_openmv(&mut self) {
+        let mes = self.read();
+        self.motor.motor_a.drive_forward(mes.ch[0] as u8).unwrap();
+        self.motor.motor_b.drive_forward(mes.ch[0] as u8).unwrap();
     }
 }
 
