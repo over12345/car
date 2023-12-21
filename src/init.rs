@@ -1,14 +1,11 @@
-use core::f64::consts::E;
 use core::fmt::Write;
-use core::str::{from_utf8, from_utf8_unchecked};
+use core::str::from_utf8;
 use cortex_m::singleton;
-use embedded_hal::blocking::delay::DelayMs;
-use nb::block;
 //一些单位的trait
 use fugit::RateExtU32;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::dma::{CircReadDma, DmaExt, Half, ReadDma};
+use stm32f1xx_hal::dma::{DmaExt, ReadDma};
 use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
 use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
@@ -17,7 +14,7 @@ use tb6612fng::Tb6612fng;
 //I2C屏幕，终端模式
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 //JSON解析
-use serde_json_core::de;
+// use serde_json_core::de;
 
 /// 这里将包含所有需要引脚的初始话和定义调度器结构体
 
@@ -53,7 +50,7 @@ pub struct CarPins {
     pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
 }
 
-struct mes {
+struct _Mes {
     theta: i16,
     rho: i16,
     ain: [bool; 2],
@@ -138,7 +135,7 @@ impl CarPins {
             dp.USART3,
             (tx, rx),
             &mut afio.mapr,
-            serial::Config::default().baudrate(19_200_u32.bps()),
+            serial::Config::default().baudrate(9600_u32.bps()),
             &clocks,
         );
         let channels = dp.DMA1.split();
@@ -155,44 +152,10 @@ impl CarPins {
     pub fn read(mut self) -> Self {
         writeln!(self.display, "155").unwrap();
         let buf = singleton!(: [u8; 8] = [0; 8]).unwrap();
-        let t: stm32f1xx_hal::dma::Transfer<
-            stm32f1xx_hal::dma::W,
-            &mut [u8; 8],
-            stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
-        > = self.rx.read(buf);
-        writeln!(self.display, "162").unwrap();
-        while !t.is_done() {
-            match from_utf8(&t.peek()) {
-                Ok(a) => write!(self.display, "{}", a).unwrap(),
-                Err(e) => writeln!(self.display, "{:?}", e).unwrap(),
-            }
-        }
-        writeln!(self.display, "168").unwrap();
+        let (buf, rx) = self.rx.read(buf).wait();
+        writeln!(self.display, "{:?}", from_utf8(buf)).unwrap();
         //let json = de::from_str(json).unwrap();
-        (_, self.rx) = t.wait();
+        self.rx = rx;
         self
     }
 }
-
-pub fn painc(
-    display: &mut Ssd1306<
-        I2CInterface<
-            i2c::BlockingI2c<
-                pac::I2C1,
-                (
-                    gpio::Pin<'B', 8, gpio::Alternate<gpio::OpenDrain>>,
-                    gpio::Pin<'B', 9, gpio::Alternate<gpio::OpenDrain>>,
-                ),
-            >,
-        >,
-        DisplaySize128x64,
-        ssd1306::mode::TerminalMode,
-    >,
-    string: &str,
-) {
-    writeln!(display, "g: {}", string).unwrap();
-}
-
-// fn drive(gpioa: gpio::gpioa::Parts) {
-//     let driver = tb6612fng::Motor::new(gpioa.pa10, in2, pwm)
-// }
