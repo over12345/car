@@ -4,11 +4,14 @@ use core::str::from_utf8;
 use cortex_m::singleton;
 // use nb::block;
 //一些单位的trait
+use embedded_hal::blocking::delay::DelayMs;
 use fugit::RateExtU32;
 use nb::block;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
+use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
 use stm32f1xx_hal::{afio::AfioExt, dma::DmaExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
+
 use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
 //电机控制
 use tb6612fng::Tb6612fng;
@@ -42,6 +45,7 @@ pub struct CarPins {
         DisplaySize128x64,
         ssd1306::mode::TerminalMode,
     >,
+    pub delay: timer::SysDelay,
     // pub openmv:
     //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
     pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
@@ -99,11 +103,13 @@ impl CarPins {
     pub fn new() -> Self {
         //初始化外设桥，时钟
         let dp = pac::Peripherals::take().unwrap();
+        let cp = cortex_m::Peripherals::take().unwrap();
         let mut flash = dp.FLASH.constrain();
         let rcc = dp.RCC.constrain();
         let clocks = rcc.cfgr.freeze(&mut flash.acr);
         let mut gpioa = dp.GPIOA.split();
         let mut gpiob = dp.GPIOB.split();
+        let delay: timer::SysDelay = cp.SYST.delay(&clocks);
 
         //获取所需引脚，为引脚设定功能，并启用时钟。载入对应功能控制对象
 
@@ -177,6 +183,7 @@ impl CarPins {
         Self {
             _motor: motor,
             display,
+            delay,
             rx,
             tx,
         }
@@ -184,6 +191,7 @@ impl CarPins {
     pub fn read(mut self) -> Self {
         // let mut json = [0 as u8; 150];
         block!(self.tx.write(b'0')).unwrap();
+        self.delay.delay_ms(10 as u16);
         let buf = singleton!(: [u8; 150] = [0; 150]).unwrap();
         use stm32f1xx_hal::dma::ReadDma;
         let (buf, rx) = self.rx.read(buf).wait();
