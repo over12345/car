@@ -1,6 +1,5 @@
 use core::fmt::Write;
 use core::str::from_utf8;
-
 use cortex_m::singleton;
 // use nb::block;
 //一些单位的trait
@@ -18,8 +17,7 @@ use tb6612fng::Tb6612fng;
 //I2C屏幕，终端模式
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 //JSON解析
-// use serde_json_core::de;
-
+use lite_json::json_parser::parse_json;
 /// 这里将包含所有需要引脚的初始话和定义调度器结构体
 
 pub struct CarPins {
@@ -52,6 +50,14 @@ pub struct CarPins {
     //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
     pub rx: serial::Rx<pac::USART3>, //: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
     pub tx: serial::Tx<pac::USART3>,
+}
+
+struct Mes {
+    theta: i16,
+    rho: i16,
+    ain: [bool; 2],
+    bin: [bool; 2],
+    ch: [i16; 2],
 }
 
 trait DisplaySsd {
@@ -194,7 +200,7 @@ impl CarPins {
             tx,
         }
     }
-    pub fn read(mut self) -> Self {
+    pub fn read(&mut self) -> lite_json::JsonValue {
         // let mut json = [0 as u8; 150];
         block!(self.tx.write(b'0')).unwrap();
         writeln!(self.display, "write 0").unwrap();
@@ -204,8 +210,9 @@ impl CarPins {
         for index in 0..74 {
             buf[index] = self.rx.read().ssdwrap(&mut self.display);
         }
-        write!(self.display, "{}", from_utf8(buf).unwrap()).unwrap();
-        self
+        let json = from_utf8(buf).unwrap();
+        write!(self.display, "{}", json).unwrap();
+        parse_json(json).unwrap()
     }
 }
 

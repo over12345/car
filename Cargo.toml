@@ -15,9 +15,9 @@ ssd1306 = "*"
 stm32f1xx-hal = { version = "0.10.0", features = ["rt", "stm32f103"] }
 tb6612fng = "0.1"
 fugit = "0.3.7"
-rtt-target = "0.4.0"
-ufmt = "0.2.0"
-serde-json-core = "0.5.1"
+lite-json = { version = "0.2.0", default-features = false, defaults = [
+    "no_std",
+] }
 
 [[bin]]
 test = false

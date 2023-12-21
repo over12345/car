@@ -13,7 +13,7 @@ fn main() -> ! {
     writeln!(car.display, "init").unwrap();
     loop {
         // car.display.clear().unwrap();
-        car = car.read();
+        car.read();
         car.delay.delay_ms(1000 as u16);
     }
 }
