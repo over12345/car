@@ -1,25 +1,24 @@
 use core::fmt::Write;
+use core::str::from_utf8_unchecked;
+use cortex_m::{asm, singleton};
 
+//一些单位的trait
 use fugit::RateExtU32;
+use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
-use stm32f1xx_hal::{gpio, i2c, pac, timer};
+use stm32f1xx_hal::dma::ReadDma;
+use stm32f1xx_hal::{afio::AfioExt, dma::DmaExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
+use stm32f1xx_hal::{gpio, i2c, pac, serial, timer};
 //电机控制
 use tb6612fng::Tb6612fng;
 //I2C屏幕，终端模式
-use embedded_graphics::{
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
-    pixelcolor::BinaryColor,
-    prelude::*,
-    text::{Baseline, Text},
-};
-use ssd1306::{mode::BufferedGraphicsMode, prelude::*, I2CDisplayInterface, Ssd1306};
+use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 
 /// 这里将包含所有需要引脚的初始话和定义调度器结构体
 
 pub struct CarPins {
     //马达
-    motor: Tb6612fng<
+    _motor: Tb6612fng<
         gpio::Pin<'A', 10, gpio::Output>,
         gpio::Pin<'A', 11, gpio::Output>,
         timer::PwmChannel<pac::TIM2, 0>, //PA0
@@ -29,7 +28,7 @@ pub struct CarPins {
         gpio::Pin<'A', 3, gpio::Output>,
     >,
     //i2c屏幕
-    display: Ssd1306<
+    pub display: Ssd1306<
         I2CInterface<
             i2c::BlockingI2c<
                 pac::I2C1,
@@ -42,6 +41,9 @@ pub struct CarPins {
         DisplaySize128x64,
         ssd1306::mode::TerminalMode,
     >,
+    // pub openmv:
+    //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
+    pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
 }
 
 impl CarPins {
@@ -76,7 +78,7 @@ impl CarPins {
         let standby = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
 
         //电机控制对象
-        let mut motor = Tb6612fng::new(
+        let motor = Tb6612fng::new(
             motor_a_in1,
             motor_a_in2,
             pwm_0,
@@ -109,11 +111,37 @@ impl CarPins {
             .into_terminal_mode();
         display.init().unwrap();
 
-        Self { motor, display }
+        //串口通信引脚
+        let tx = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
+        let rx = gpiob.pb11;
+        let channels = dp.DMA1.split();
+        let openmv: serial::Serial<
+            pac::USART3,
+            (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>),
+        > = serial::Serial::new(
+            dp.USART3,
+            (tx, rx),
+            &mut afio.mapr,
+            serial::Config::default().baudrate(19_200_u32.bps()),
+            &clocks,
+        );
+        let rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3> =
+            openmv.rx.with_dma(channels.3);
+
+        Self {
+            _motor: motor,
+            display,
+            rx,
+        }
     }
-    pub fn flashln(&mut self, string: &str) {
-        let _ = self.display.clear();
-        self.display.write_str(string).unwrap();
+    pub fn read(mut self) -> Self {
+        let buf = singleton!(: [u8; 8] = [0; 8]).unwrap();
+        let (buf, rx) = self.rx.read(buf).wait();
+        self.rx = rx;
+        self.display
+            .write_str(unsafe { from_utf8_unchecked(buf) })
+            .unwrap();
+        self
     }
 }
 
