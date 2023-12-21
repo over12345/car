@@ -48,7 +48,7 @@ pub struct CarPins {
     pub delay: timer::SysDelay,
     // pub openmv:
     //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
-    pub rx: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
+    pub rx: serial::Rx<pac::USART3>, //: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
     tx: serial::Tx<pac::USART3>,
 }
 
@@ -178,7 +178,8 @@ impl CarPins {
             &clocks,
         );
         let tx: serial::Tx<pac::USART3> = openmv.tx;
-        let rx = openmv.rx.with_dma(channels.3);
+        let rx: serial::Rx<pac::USART3> = openmv.rx;
+        // let rx = openmv.rx.with_dma(channels.3);
 
         Self {
             _motor: motor,
@@ -194,10 +195,11 @@ impl CarPins {
         writeln!(self.display, "write 0").unwrap();
         // self.delay.delay_ms(10 as u16);
         let buf = singleton!(: [u8; 150] = [0; 150]).unwrap();
-        use stm32f1xx_hal::dma::ReadDma;
-        let (buf, rx) = self.rx.read(buf).wait();
+        // use stm32f1xx_hal::dma::ReadDma;
+        for index in 0..74 {
+            buf[index] = self.rx.read().ssdwrap(&mut self.display);
+        }
         write!(self.display, "{}", from_utf8(buf).unwrap()).unwrap();
-        self.rx = rx;
         self
     }
 }
