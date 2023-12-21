@@ -1,22 +1,15 @@
 #![no_std]
 #![no_main]
 
-// use core::fmt::Write;
-
-use cortex_m_rt::{entry, exception, ExceptionFrame};
+use cortex_m_rt::entry;
 use panic_halt as _;
-
 mod init;
 
 #[entry]
 fn main() -> ! {
     let mut car = init::CarPins::new();
+    let _ = car.display.clear();
     loop {
         car.read();
     }
-}
-
-#[exception]
-unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
-    panic!("{:#?}", ef);
 }
