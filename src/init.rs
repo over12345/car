@@ -3,16 +3,12 @@ use core::str::from_utf8;
 
 use cortex_m::singleton;
 // use nb::block;
-use core::str::from_utf8;
-use cortex_m::singleton;
 //一些单位的trait
-use embedded_hal::blocking::delay::DelayMs;
 use fugit::RateExtU32;
 use nb::block;
 use stm32f1xx_hal::time::U32Ext;
 //主要需要使用constrain来从外设对象上分离子对象，该功能在xx::xxExt里
-use stm32f1xx_hal::dma::{DmaExt, ReadDma};
-use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
+// use stm32f1xx_hal::dma::DmaExt;
 use stm32f1xx_hal::prelude::_stm32f4xx_hal_timer_SysCounterExt;
 use stm32f1xx_hal::{afio::AfioExt, flash::FlashExt, gpio::GpioExt, rcc::RccExt};
 
@@ -55,7 +51,7 @@ pub struct CarPins {
     // pub openmv:
     //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
     pub rx: serial::Rx<pac::USART3>, //: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
-    tx: serial::Tx<pac::USART3>,
+    pub tx: serial::Tx<pac::USART3>,
 }
 
 trait DisplaySsd {
@@ -115,7 +111,7 @@ impl CarPins {
         let clocks = rcc.cfgr.freeze(&mut flash.acr);
         let mut gpioa = dp.GPIOA.split();
         let mut gpiob = dp.GPIOB.split();
-        let delay: timer::SysDelay = cp.SYST.delay(&clocks);
+        let delay = cp.SYST.delay(&clocks);
 
         //获取所需引脚，为引脚设定功能，并启用时钟。载入对应功能控制对象
 
@@ -137,8 +133,7 @@ impl CarPins {
         let motor_b_in1 = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
         let motor_b_in2 = gpioa.pa9.into_push_pull_output(&mut gpioa.crh);
         let standby = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
-        let mut led: gpio::Pin<'A', 8, gpio::Output> =
-            gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
+        let mut led = gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
 
         //电机控制对象
         let motor = Tb6612fng::new(
@@ -178,7 +173,6 @@ impl CarPins {
         //串口通信引脚
         let tx = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
         let rx = gpiob.pb11;
-        let channels = dp.DMA1.split();
         let openmv = serial::Serial::new(
             dp.USART3,
             (tx, rx),
@@ -189,8 +183,8 @@ impl CarPins {
         let tx: serial::Tx<pac::USART3> = openmv.tx;
         let rx: serial::Rx<pac::USART3> = openmv.rx;
         // let rx = openmv.rx.with_dma(channels.3);
-        let channels = dp.DMA1.split();
-        let rx = openmv.rx.with_dma(channels.3);
+        // let channels = dp.DMA1.split();
+        // let rx = openmv.rx.with_dma(channels.3);
 
         Self {
             _motor: motor,
@@ -198,9 +192,6 @@ impl CarPins {
             delay,
             rx,
             tx,
-            rx,
-            delay,
-            led,
         }
     }
     pub fn read(mut self) -> Self {

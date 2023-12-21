@@ -2,7 +2,7 @@
 #![no_main]
 
 use core::fmt::Write;
-use cortex_m_rt::{entry, exception, ExceptionFrame};
+use cortex_m_rt::entry;
 use embedded_hal::blocking::delay::DelayMs;
 use panic_halt as _;
 mod init;
