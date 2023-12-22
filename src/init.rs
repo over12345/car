@@ -234,8 +234,13 @@ impl CarPins {
     }
     pub fn go_with_openmv(&mut self) {
         let mes = self.read();
-
         let data: u16 = self.mental.0.read(&mut self.mental.1).unwrap();
+        writeln!(
+            self.display,
+            "{}|{}|{}",
+            mes.direction[0], mes.direction[1], data
+        )
+        .unwrap();
         if data <= 20 {
             self.motor.disable_standby();
         } else {
