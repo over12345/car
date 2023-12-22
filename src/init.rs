@@ -263,12 +263,7 @@ impl CarPins {
     pub fn go_with_openmv(&mut self) {
         let mes = self.read();
         let data: u16 = self.mental.0.read(&mut self.mental.1).unwrap();
-        writeln!(
-            self.display,
-            "{}|{}|{}",
-            mes.direction[0], mes.direction[1], data
-        )
-        .unwrap();
+        writeln!(self.display, "{}|{}", mes.pwm[0], mes.pwm[1]).unwrap();
         if data >= 2000 {
             self.motor.disable_standby();
         } else {
@@ -279,31 +274,31 @@ impl CarPins {
             [true, true] => {
                 self.motor
                     .motor_a
-                    .drive_forward(mes.pwm[1] + 20)
+                    .drive_forward(mes.pwm[1])
                     .ssdwrap(&mut self.display);
                 self.motor
                     .motor_b
-                    .drive_forward(mes.pwm[0] + 20)
+                    .drive_forward(mes.pwm[0])
                     .ssdwrap(&mut self.display);
             }
             [true, false] => {
                 self.motor
                     .motor_a
-                    .drive_forward(mes.pwm[1] + 20)
+                    .drive_forward(mes.pwm[1])
                     .ssdwrap(&mut self.display);
                 self.motor
                     .motor_b
-                    .drive_backwards(mes.pwm[0] + 20)
+                    .drive_backwards(mes.pwm[0])
                     .ssdwrap(&mut self.display);
             }
             [false, true] => {
                 self.motor
                     .motor_a
-                    .drive_backwards(mes.pwm[1] + 20)
+                    .drive_backwards(mes.pwm[1])
                     .ssdwrap(&mut self.display);
                 self.motor
                     .motor_b
-                    .drive_forward(mes.pwm[0] + 20)
+                    .drive_forward(mes.pwm[0])
                     .ssdwrap(&mut self.display);
             }
             [false, false] => self.motor.enable_standby(),
