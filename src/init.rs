@@ -52,7 +52,7 @@ pub struct CarPins {
     pub tx: serial::Tx<pac::USART3>,
 }
 
-struct Mes {
+pub struct Mes {
     pwm: [u8; 2],
     direction: [bool; 2],
 }
@@ -181,6 +181,7 @@ impl CarPins {
         let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
             .into_terminal_mode();
         display.init().unwrap();
+        display.clear().unwrap();
 
         //串口通信引脚
         let tx = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
@@ -189,7 +190,7 @@ impl CarPins {
             dp.USART3,
             (tx, rx),
             &mut afio.mapr,
-            serial::Config::default().baudrate(9_600_u32.bps()),
+            serial::Config::default().baudrate(2400_u32.bps()),
             &clocks,
         );
         let tx: serial::Tx<pac::USART3> = openmv.tx;
@@ -207,21 +208,28 @@ impl CarPins {
             tx,
         }
     }
-    fn read(&mut self) -> Mes {
+    pub fn read(&mut self) -> Mes {
         // let mut json = [0 as u8; 150];
-        block!(self.tx.write(b'0')).unwrap();
         writeln!(self.display, "write 0").unwrap();
-        // self.delay.delay_ms(10 as u16);
-        let buf = singleton!(: [u8; 150] = [0; 150]).unwrap();
-        // use stm32f1xx_hal::dma::ReadDma;
-        for index in 0..74 {
-            buf[index] = self.rx.read().ssdwrap(&mut self.display);
+        let mut buf = [0 as u8; 5];
+        block!(self.tx.write(b'0')).unwrap();
+        for index in 0..5 {
+            buf[index] = block!(self.rx.read()).ssdwrap(&mut self.display);
         }
-        let json = from_utf8(buf).unwrap();
-        write!(self.display, "{}", json).unwrap();
+        let pwm = (buf[2] - 48) * 100 + (buf[3] - 48) * 10 + (buf[4] - 48);
+        // write!(self.display, "{:?}", buf).unwrap();
         Mes {
-            pwm: [100, 100],
-            direction: [true, true],
+            pwm: [pwm, 100 - pwm],
+            direction: [
+                match buf[0] {
+                    48 => true,
+                    _ => false,
+                },
+                match buf[1] {
+                    48 => true,
+                    _ => false,
+                },
+            ],
         }
     }
     pub fn go_with_openmv(&mut self) {
@@ -231,7 +239,7 @@ impl CarPins {
         if data <= 20 {
             self.motor.disable_standby();
         } else {
-            self.motor.enable_standby()
+            self.motor.enable_standby();
         }
         match mes.direction {
             //按理来说，不可能后退，所以，代码就这样了。根据已有的Openmv代码来看，大概率只会命中第一种情况

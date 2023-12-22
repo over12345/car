@@ -23,8 +23,8 @@
             "args": [
                 "--output-target",
                 "binary",
-                "./target/thumbv7m-none-eabi/release/test-openocd",
-                "./target/thumbv7m-none-eabi/release/test-openocd.bin"
+                "./target/thumbv7m-none-eabi/release/app",
+                "./target/thumbv7m-none-eabi/release/app.bin"
             ],
             "problemMatcher": [
                 "$rustc"

@@ -9,7 +9,7 @@
             "request": "launch",
             "type": "cortex-debug",
             "cwd": "${workspaceRoot}",
-            "executable": "${workspaceFolder}/target/thumbv7m-none-eabi/release/test-openocd",
+            "executable": "${workspaceFolder}/target/thumbv7m-none-eabi/release/app",
             "svdFile": "${workspaceFolder}/STM32F103.svd",
             "servertype": "openocd",
             "configFiles": [
@@ -20,7 +20,7 @@
                 "monitor init",
                 "monitor reset init",
                 "monitor halt",
-                "monitor flash write_image erase ./target/thumbv7m-none-eabi/release/test-openocd.bin 0x08000000"
+                "monitor flash write_image erase ./target/thumbv7m-none-eabi/release/app.bin 0x08000000"
             ],
             "postLaunchCommands": [
                 "continue"
