@@ -63,7 +63,7 @@ impl Mes {
     }
 }
 
-trait DisplaySsd {
+trait DisplaySsd<T> {
     fn ssdwrap(
         self,
         display: &mut Ssd1306<
@@ -79,10 +79,38 @@ trait DisplaySsd {
             DisplaySize128x64,
             ssd1306::mode::TerminalMode,
         >,
-    ) -> u8;
+    ) -> T;
 }
 
-impl<E: core::fmt::Debug> DisplaySsd for core::result::Result<u8, E> {
+impl<E: core::fmt::Debug> DisplaySsd<()> for core::result::Result<(), E> {
+    fn ssdwrap(
+        self,
+        display: &mut Ssd1306<
+            I2CInterface<
+                i2c::BlockingI2c<
+                    pac::I2C1,
+                    (
+                        gpio::Pin<'B', 8, gpio::Alternate<gpio::OpenDrain>>,
+                        gpio::Pin<'B', 9, gpio::Alternate<gpio::OpenDrain>>,
+                    ),
+                >,
+            >,
+            DisplaySize128x64,
+            ssd1306::mode::TerminalMode,
+        >,
+    ) -> () {
+        match self {
+            Ok(()) => (),
+            Err(e) => {
+                display.clear().unwrap();
+                writeln!(display, "{:?}", e).unwrap();
+                ()
+            }
+        }
+    }
+}
+
+impl<E: core::fmt::Debug> DisplaySsd<u8> for core::result::Result<u8, E> {
     fn ssdwrap(
         self,
         display: &mut Ssd1306<
@@ -241,7 +269,7 @@ impl CarPins {
             mes.direction[0], mes.direction[1], data
         )
         .unwrap();
-        if data <= 20 {
+        if data >= 2000 {
             self.motor.disable_standby();
         } else {
             self.motor.enable_standby();
@@ -249,16 +277,34 @@ impl CarPins {
         match mes.direction {
             //按理来说，不可能后退，所以，代码就这样了。根据已有的Openmv代码来看，大概率只会命中第一种情况
             [true, true] => {
-                self.motor.motor_a.drive_forward(mes.pwm[0]).unwrap();
-                self.motor.motor_b.drive_forward(mes.pwm[1]).unwrap();
+                self.motor
+                    .motor_a
+                    .drive_forward(mes.pwm[1] + 20)
+                    .ssdwrap(&mut self.display);
+                self.motor
+                    .motor_b
+                    .drive_forward(mes.pwm[0] + 20)
+                    .ssdwrap(&mut self.display);
             }
             [true, false] => {
-                self.motor.motor_a.drive_forward(mes.pwm[0]).unwrap();
-                self.motor.motor_b.drive_backwards(mes.pwm[1]).unwrap();
+                self.motor
+                    .motor_a
+                    .drive_forward(mes.pwm[1] + 20)
+                    .ssdwrap(&mut self.display);
+                self.motor
+                    .motor_b
+                    .drive_backwards(mes.pwm[0] + 20)
+                    .ssdwrap(&mut self.display);
             }
             [false, true] => {
-                self.motor.motor_a.drive_backwards(mes.pwm[0]).unwrap();
-                self.motor.motor_b.drive_forward(mes.pwm[1]).unwrap();
+                self.motor
+                    .motor_a
+                    .drive_backwards(mes.pwm[1] + 20)
+                    .ssdwrap(&mut self.display);
+                self.motor
+                    .motor_b
+                    .drive_forward(mes.pwm[0] + 20)
+                    .ssdwrap(&mut self.display);
             }
             [false, false] => self.motor.enable_standby(),
         }
