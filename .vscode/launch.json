@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Blinky",
+            "request": "launch",
+            "type": "cortex-debug",
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceFolder}/target/thumbv7m-none-eabi/release/test-openocd",
+            "svdFile": "${workspaceFolder}/STM32F103.svd",
+            "servertype": "openocd",
+            "configFiles": [
+                "openocd.cfg"
+            ],
+            "preLaunchTask": "Build binary",
+            "preLaunchCommands": [
+                "monitor init",
+                "monitor reset init",
+                "monitor halt",
+                "monitor flash write_image erase ./target/thumbv7m-none-eabi/release/test-openocd.bin 0x08000000"
+            ],
+            "postLaunchCommands": [
+                "continue"
+            ], // Don't stop before at the first line
+            "overrideLaunchCommands": [
+                "interpreter-exec console \"monitor reset halt\"",
+                //'target-download',
+                //'interpreter-exec console \"monitor reset halt\"',
+                "-enable-pretty-printing"
+            ],
+        }
+    ]
+}
