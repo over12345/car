@@ -63,7 +63,7 @@ impl Mes {
     }
 }
 
-trait DisplaySsd<T> {
+trait DisplaySsd {
     fn ssdwrap(
         self,
         display: &mut Ssd1306<
@@ -79,38 +79,10 @@ trait DisplaySsd<T> {
             DisplaySize128x64,
             ssd1306::mode::TerminalMode,
         >,
-    ) -> T;
+    ) -> u8;
 }
 
-impl<E: core::fmt::Debug> DisplaySsd<()> for core::result::Result<(), E> {
-    fn ssdwrap(
-        self,
-        display: &mut Ssd1306<
-            I2CInterface<
-                i2c::BlockingI2c<
-                    pac::I2C1,
-                    (
-                        gpio::Pin<'B', 8, gpio::Alternate<gpio::OpenDrain>>,
-                        gpio::Pin<'B', 9, gpio::Alternate<gpio::OpenDrain>>,
-                    ),
-                >,
-            >,
-            DisplaySize128x64,
-            ssd1306::mode::TerminalMode,
-        >,
-    ) -> () {
-        match self {
-            Ok(()) => (),
-            Err(e) => {
-                display.clear().unwrap();
-                writeln!(display, "{:?}", e).unwrap();
-                ()
-            }
-        }
-    }
-}
-
-impl<E: core::fmt::Debug> DisplaySsd<u8> for core::result::Result<u8, E> {
+impl<E: core::fmt::Debug> DisplaySsd for core::result::Result<u8, E> {
     fn ssdwrap(
         self,
         display: &mut Ssd1306<
@@ -241,10 +213,10 @@ impl CarPins {
         writeln!(self.display, "write 0").unwrap();
         let mut buf = [0 as u8; 5];
         block!(self.tx.write(b'0')).unwrap();
-        for index in 0..5 {
+        for index in 0..7{
             buf[index] = block!(self.rx.read()).ssdwrap(&mut self.display);
         }
-        let pwm = (buf[2] - 48) * 100 + (buf[3] - 48) * 10 + (buf[4] - 48);
+        let pwm = (buf[2] - 48) * 16 + (buf[3] - 48) * 8 + (buf[4] - 48)*4+ (buf[5] - 48)*2 + (buf[6] - 48)*1;
         // write!(self.display, "{:?}", buf).unwrap();
         Mes {
             pwm: [pwm, 100 - pwm],
@@ -263,8 +235,13 @@ impl CarPins {
     pub fn go_with_openmv(&mut self) {
         let mes = self.read();
         let data: u16 = self.mental.0.read(&mut self.mental.1).unwrap();
-        writeln!(self.display, "{}|{}", mes.pwm[0], mes.pwm[1]).unwrap();
-        if data >= 2000 {
+        writeln!(
+            self.display,
+            "{}|{}|{}",
+            mes.direction[0], mes.direction[1], data
+        )
+        .unwrap();
+        if data <= 20 {
             self.motor.disable_standby();
         } else {
             self.motor.enable_standby();
@@ -272,34 +249,16 @@ impl CarPins {
         match mes.direction {
             //按理来说，不可能后退，所以，代码就这样了。根据已有的Openmv代码来看，大概率只会命中第一种情况
             [true, true] => {
-                self.motor
-                    .motor_a
-                    .drive_forward(mes.pwm[1])
-                    .ssdwrap(&mut self.display);
-                self.motor
-                    .motor_b
-                    .drive_forward(mes.pwm[0])
-                    .ssdwrap(&mut self.display);
+                self.motor.motor_a.drive_forward(mes.pwm[0]).unwrap();
+                self.motor.motor_b.drive_forward(mes.pwm[1]).unwrap();
             }
             [true, false] => {
-                self.motor
-                    .motor_a
-                    .drive_forward(mes.pwm[1])
-                    .ssdwrap(&mut self.display);
-                self.motor
-                    .motor_b
-                    .drive_backwards(mes.pwm[0])
-                    .ssdwrap(&mut self.display);
+                self.motor.motor_a.drive_forward(mes.pwm[0]).unwrap();
+                self.motor.motor_b.drive_backwards(mes.pwm[1]).unwrap();
             }
             [false, true] => {
-                self.motor
-                    .motor_a
-                    .drive_backwards(mes.pwm[1])
-                    .ssdwrap(&mut self.display);
-                self.motor
-                    .motor_b
-                    .drive_forward(mes.pwm[0])
-                    .ssdwrap(&mut self.display);
+                self.motor.motor_a.drive_backwards(mes.pwm[0]).unwrap();
+                self.motor.motor_b.drive_forward(mes.pwm[1]).unwrap();
             }
             [false, false] => self.motor.enable_standby(),
         }
