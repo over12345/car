@@ -50,6 +50,11 @@ pub struct CarPins {
     //     serial::Serial<pac::USART3, (gpio::Pin<'B', 10, gpio::Alternate>, gpio::Pin<'B', 11>)>,
     pub rx: serial::Rx<pac::USART3>, //: stm32f1xx_hal::dma::RxDma<serial::Rx<pac::USART3>, stm32f1xx_hal::dma::dma1::C3>,
     pub tx: serial::Tx<pac::USART3>,
+    pub integral:i32,
+        
+    pub derivative:i32,
+
+    pub last_error:i32,
 }
 
 pub struct Mes {
@@ -234,6 +239,9 @@ impl CarPins {
             delay,
             rx,
             tx,
+            integral:0,
+            derivative:0,
+            last_error:0,
         }
     }
     pub fn read(&mut self) -> Mes {
@@ -244,10 +252,23 @@ impl CarPins {
         for index in 0..5 {
             buf[index] = block!(self.rx.read()).ssdwrap(&mut self.display);
         }
-        let pwm = (buf[2] - 48) * 100 + (buf[3] - 48) * 10 + (buf[4] - 48);
+        let offset = 15;
+        let error = 5*buf[0] +10*buf[1] + 15*buf[2] + 20*buf[3] + 25*buf[4] -offset;
+        let error = error as i32;
+        let kp = 5;
+        let ki = 1 ;
+        let kd = 10;
+       
+    
+        self.integral += error;
+        self.derivative = error - self.last_error ;
+        self.last_error = error;
+        let turn = kp*error + ki*self.integral + kd*self.derivative ;
+        let turn = turn as u8;
         // write!(self.display, "{:?}", buf).unwrap();
         Mes {
-            pwm: [20+pwm, 120 - pwm],
+            
+            pwm: [50 + turn, 50 - turn],
             direction: [
                 match buf[0] {
                     48 => true,
