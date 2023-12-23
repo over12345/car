@@ -218,7 +218,7 @@ impl CarPins {
             dp.USART3,
             (tx, rx),
             &mut afio.mapr,
-            serial::Config::default().baudrate(2400_u32.bps()),
+            serial::Config::default().baudrate(115200_u32.bps()),
             &clocks,
         );
         let tx: serial::Tx<pac::USART3> = openmv.tx;
@@ -247,7 +247,7 @@ impl CarPins {
         let pwm = (buf[2] - 48) * 100 + (buf[3] - 48) * 10 + (buf[4] - 48);
         // write!(self.display, "{:?}", buf).unwrap();
         Mes {
-            pwm: [pwm, 100 - pwm],
+            pwm: [20+pwm, 120 - pwm],
             direction: [
                 match buf[0] {
                     48 => true,
