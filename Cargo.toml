@@ -5,7 +5,7 @@ name = "app"
 version = "0.1.0"
 
 [dependencies]
-embedded-hal = "*"
+embedded-hal = "1.0.0"
 nb = "*"
 cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7"
